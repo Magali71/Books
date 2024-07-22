@@ -10,6 +10,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Serializer\SerializerInterface;
 
 class BookController extends AbstractController
@@ -29,7 +30,7 @@ class BookController extends AbstractController
         );
     }
 
-    #[Route('/api/books/{id}', name: 'detail_book', methods: ['GET'])]
+    #[Route('/api/books/{id}', name: 'detailBook', methods: ['GET'])]
     public function getDetailBook(BookRepository $bookRepository, SerializerInterface $serializer, int $id): JsonResponse
     {
         // premiere étape : récupérer les données souhaitées
@@ -38,7 +39,7 @@ class BookController extends AbstractController
             // deuxième étape : convertir les données en json
             $bookJson = $serializer->serialize($book, 'json', ['groups' => 'getBooks']);
             // true est important il permet de dire que les données sont déjà en json et de les afficher correctement
-            // le [] correspond aux headers
+            // le [] correspond aux headers => on peut envoyer des infos dans les headers
             return new JsonResponse(
                 $bookJson, Response::HTTP_OK, [], true);
         }
@@ -46,7 +47,8 @@ class BookController extends AbstractController
         return new JsonResponse('pas de livre', Response::HTTP_NOT_FOUND);
     }
 
-    // autre façon de faire pour récupérer un book avec un paramConverteur :
+    // autre façon de faire pour récupérer un book avec un paramConverteur
+    // permet de ne pas passer par le repo :
     // #[Route('/api/books/{id}', name: 'detail_book', methods: ['GET'])]
     //public function getDetailBook(Book $book, SerializerInterface $serializer): JsonResponse
     //{
@@ -66,14 +68,22 @@ class BookController extends AbstractController
     }
 
     #[Route('/api/books', name: 'detail_book', methods: ['POST'])]
-    public function createBook(Request $request, SerializerInterface $serializer,EntityManagerInterface $em): JsonResponse
+    public function createBook(Request $request, SerializerInterface $serializer,
+       EntityManagerInterface $em, UrlGeneratorInterface $urlGenerator): JsonResponse
     {
+        // on récupère ce que l'on recoit
         $request = $request->getContent();
+        // on passe d'un json à un Objet Book pour pouvoir l'enregistrer en base de données
         $book = $serializer->deserialize($request, Book::class, 'json');
-        //todo verifier le type de $book
         $em->persist($book);
         $em->flush();
 
-        return new JsonResponse($book, Response::HTTP_CREATED, [], true);
+        // je mets l'Objet crée en json pour le retourner dans la réponse
+        $jsonBook = $serializer->serialize($book, 'json', ['groups' => 'getBooks']);
+
+        // on va envoyer dans les hearders la location cad l'Url du nouveau livre créé
+        $location =  $urlGenerator->generate('detailBook', ['id' => $book->getId()], UrlGeneratorInterface::ABSOLUTE_URL);
+
+        return new JsonResponse($jsonBook, Response::HTTP_CREATED, ['location' => $location], true);
     }
 }
