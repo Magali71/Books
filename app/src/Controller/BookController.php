@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\Book;
+use App\Repository\AuthorRepository;
 use App\Repository\BookRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -69,12 +70,23 @@ class BookController extends AbstractController
 
     #[Route('/api/books', name: 'detail_book', methods: ['POST'])]
     public function createBook(Request $request, SerializerInterface $serializer,
-       EntityManagerInterface $em, UrlGeneratorInterface $urlGenerator): JsonResponse
+       EntityManagerInterface $em, UrlGeneratorInterface $urlGenerator,
+       AuthorRepository $authorRepository): JsonResponse
     {
-        // on récupère ce que l'on recoit
-        $request = $request->getContent();
+        // on récupère ce que l'on envoie (du json) = $request->getContent();
         // on passe d'un json à un Objet Book pour pouvoir l'enregistrer en base de données
-        $book = $serializer->deserialize($request, Book::class, 'json');
+        $book = $serializer->deserialize($request->getContent(), Book::class, 'json');
+
+        // POUR RECUPERER L'IDDE L'AUTEUR
+        // 1. Récupération de l'ensemble des données envoyées sous forme de tableau
+        $content = $request->toArray();
+        // 2. Récupération de l'idAuthor. S'il n'est pas défini, alors on met -1 par défaut.
+        $idAuthor = $content['idAuthor'] ?? -1;
+
+        // On cherche l'auteur qui correspond et on l'assigne au livre.
+        // Si "find" ne trouve pas l'auteur, alors null sera retourné.
+        $book->setAuthor($authorRepository->find($idAuthor));
+
         $em->persist($book);
         $em->flush();
 
