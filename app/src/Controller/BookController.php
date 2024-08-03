@@ -12,6 +12,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
 
 class BookController extends AbstractController
@@ -79,9 +80,9 @@ class BookController extends AbstractController
 
         // POUR RECUPERER L'IDDE L'AUTEUR
         // 1. Récupération de l'ensemble des données envoyées sous forme de tableau
-        $content = $request->toArray();
+        $contentArray = $request->toArray();
         // 2. Récupération de l'idAuthor. S'il n'est pas défini, alors on met -1 par défaut.
-        $idAuthor = $content['idAuthor'] ?? -1;
+        $idAuthor = $contentArray['idAuthor'] ?? -1;
 
         // On cherche l'auteur qui correspond et on l'assigne au livre.
         // Si "find" ne trouve pas l'auteur, alors null sera retourné.
@@ -97,5 +98,25 @@ class BookController extends AbstractController
         $location =  $urlGenerator->generate('detailBook', ['id' => $book->getId()], UrlGeneratorInterface::ABSOLUTE_URL);
 
         return new JsonResponse($jsonBook, Response::HTTP_CREATED, ['location' => $location], true);
+    }
+
+    // on va utiliser un paramConverteur
+    #[Route('/api/books/{id}', name: 'updateBook', methods: ['PUT'])]
+    public function updateBook(Request $request, SerializerInterface $serializer,
+    Book $currentBook, AuthorRepository $authorRepository, EntityManagerInterface $em)
+    {
+        $updatedBook = $serializer->deserialize($request->getContent(),  Book::class,
+            'json',
+            [AbstractNormalizer::OBJECT_TO_POPULATE => $currentBook]);
+
+        $contentArray = $request->toArray();
+        $idAuthor = $contentArray['idAuthor'] ?? -1;
+        $author = $authorRepository->find($idAuthor);
+        $updatedBook->setAuthor($author);
+
+        $em->persist($updatedBook);
+        $em->flush();
+
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }
 }
