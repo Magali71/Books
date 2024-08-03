@@ -24,7 +24,8 @@ class Book
     #[Groups(["getBooks", "getAuthors"])]
     private ?string $coverText = null;
 
-    #[ORM\ManyToOne(inversedBy: 'books')]
+    #[ORM\ManyToOne(targetEntity: Author::class, inversedBy: 'books')]
+    #[ORM\JoinColumn(onDelete:"CASCADE")]
     #[Groups(["getBooks"])]
     private ?Author $author = null;
 

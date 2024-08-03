@@ -60,7 +60,7 @@ class BookController extends AbstractController
     //}
 
 
-    #[Route('/api/books/{id}', name: 'detail_book', methods: ['DELETE'])]
+    #[Route('/api/books/{id}', name: 'deleteBook', methods: ['DELETE'])]
     public function deleteBook(Book $book, EntityManagerInterface $em): JsonResponse
     {
         $em->remove($book);
