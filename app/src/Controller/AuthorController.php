@@ -7,8 +7,11 @@ use App\Repository\AuthorRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
 
 class AuthorController extends AbstractController
@@ -65,9 +68,66 @@ class AuthorController extends AbstractController
      * @return JsonResponse
      */
     #[Route('api/authors/{id}', name: 'deleteAuthor', methods:['DELETE'])]
-    public function deleteAuthor(Author $author, EntityManagerInterface $em)
+    public function deleteAuthor(Author $author, EntityManagerInterface $em): JsonResponse
     {
         $em->remove($author);
+        $em->flush();
+
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+    }
+
+    /**
+     * il y a une action en base de données donc on a besoin d'entityManager
+     * Cette méthode permet de créer un nouvel auteur. Elle ne permet pas
+     * d'associer directement des livres à cet auteur.
+     * Exemple de données :
+     * {
+     * "lastName": "Tolkien",
+     * "firstName": "J.R.R"
+     * }
+     * @param Request $request
+     * @param SerializerInterface $serializer
+     * @param EntityManagerInterface $em
+     * @param UrlGeneratorInterface $urlGenerator
+     * @return JsonResponse
+     */
+    #[Route('/api/authors', name: 'createAuthors', methods: ['POST'])]
+    public function createAuthor(
+        Request $request,
+        SerializerInterface $serializer,
+        EntityManagerInterface $em,
+        UrlGeneratorInterface $urlGenerator
+    ): JsonResponse {
+        $author = $serializer->deserialize($request->getContent(),Author::class, 'json');
+
+        $em->persist($author);
+        $em->flush();
+
+        $location = $urlGenerator->generate('detailAuthor', ['id' => $author->getId()], UrlGeneratorInterface::ABSOLUTE_URL);
+        $authorJson = $serializer->serialize($author, 'json');
+
+        return new JsonResponse($authorJson, Response::HTTP_CREATED, ['Location' => $location], true);
+    }
+
+    /**
+     * il y a une action à faire en base de données donc il faut faire appel à l'entity manager
+     * @param Request $request
+     * @param SerializerInterface $serializer
+     * @param EntityManagerInterface $em
+     * @param Author $currentAuthor
+     * @return JsonResponse
+     */
+    #[Route('/api/authors/{id}', name: 'updateAuthor', methods: ['PUT'])]
+    public function updateAuthor(
+        Request $request,
+        SerializerInterface $serializer,
+        EntityManagerInterface $em,
+        Author $currentAuthor
+        ): JsonResponse {
+        $authorUpdated = $serializer->deserialize($request->getContent(), Author::class, 'json',
+            [AbstractNormalizer::OBJECT_TO_POPULATE => $currentAuthor]);
+
+        $em->persist($authorUpdated);
         $em->flush();
 
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);

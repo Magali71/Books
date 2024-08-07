@@ -97,7 +97,7 @@ class BookController extends AbstractController
         // on va envoyer dans les hearders la location cad l'Url du nouveau livre créé
         $location =  $urlGenerator->generate('detailBook', ['id' => $book->getId()], UrlGeneratorInterface::ABSOLUTE_URL);
 
-        return new JsonResponse($jsonBook, Response::HTTP_CREATED, ['location' => $location], true);
+        return new JsonResponse($jsonBook, Response::HTTP_CREATED, ['Location' => $location], true);
     }
 
     // on va utiliser un paramConverteur
