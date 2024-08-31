@@ -6,6 +6,7 @@ use App\Entity\Book;
 use App\Repository\AuthorRepository;
 use App\Repository\BookRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -20,10 +21,17 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 class BookController extends AbstractController
 {
     #[Route('/api/books', name: 'app_book', methods: ['GET'])]
-    public function getAllBooks(BookRepository $bookRepository, SerializerInterface $serializer): JsonResponse
+    public function getAllBooks(BookRepository $bookRepository, SerializerInterface $serializer, Request $request): JsonResponse
     {
+        // pagination, le 1 et le 3 sont des paramètres par defaut s'ils ne sont pas def dans l'url
+        $page = $request->get('page', 1);
+        $nbItem = $request->get('limit', 3);
+
         // premiere étape : récupérer les données souhaitées
-        $books = $bookRepository->findAll();
+        // $books = $bookRepository->findAll();
+        // récupération de tous les livres avec la pagination
+        $books = $bookRepository->findAllWithPagination($page, $nbItem);
+
         // deuxième étape : convertir les données en json
         $jsonBooks = $serializer->serialize($books, 'json', ['groups' => 'getBooks']);
 
@@ -72,6 +80,7 @@ class BookController extends AbstractController
     }
 
     #[Route('/api/books', name: 'detail_book', methods: ['POST'])]
+    #[IsGranted('ROLE_ADMIN', message: 'Vous n\'avez pas les droits suffisants pour créer un livre')]
     public function createBook(Request $request, SerializerInterface $serializer,
        EntityManagerInterface $em, UrlGeneratorInterface $urlGenerator,
        AuthorRepository $authorRepository, ValidatorInterface $validator): JsonResponse
