@@ -14,22 +14,45 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Symfony\Contracts\Cache\ItemInterface;
+use Symfony\Contracts\Cache\TagAwareCacheInterface;
 
 class AuthorController extends AbstractController
 {
     /**
      * Cette méthode permet de récupérer l'ensemble des auteurs.
-     *
      * @param AuthorRepository $authorRepository
      * @param SerializerInterface $serializer
+     * @param Request $request
      * @return JsonResponse
      */
     #[Route('/api/authors', name: 'authors', methods: ['GET'])]
-    public function getAllAuthors(AuthorRepository $authorRepository, SerializerInterface $serializer): JsonResponse
+    public function getAllAuthors(
+        AuthorRepository $authorRepository,
+        SerializerInterface $serializer,
+        Request $request,
+        TagAwareCacheInterface $cachePool
+    ): JsonResponse
     {
-        $authors= $authorRepository->findAll();
+        // pagination  le 1 et le 3 sont des paramètres par defaut s'ils ne sont pas def dans l'url
+        $page = $request->get('page', 1);
+        $nbItem = $request->get('limit', 3);
 
-        $jsonAuthors = $serializer->serialize($authors, 'json', ['groups' => 'getAuthors']);
+        // récupération des auteurs quand il n'y a pas de pagination
+        // $authors= $authorRepository->findAll();
+
+        // mise en place du cache
+        $idCache = "getAllAuthors-" . $page . "-" . $nbItem;
+
+        // récupération des auteurs avec une pagination
+        // $authors = $authorRepository->findAllWithPagination($page, $nbItem);
+
+        $jsonAuthors = $cachePool->get($idCache, function (ItemInterface $item) use ($authorRepository, $page, $nbItem, $serializer) {
+            $item->tag("authorsCache");
+            $authorsLIst = $authorRepository->findAllWithPagination($page, $nbItem);
+            // deuxième étape : convertir les données en json
+            return $serializer->serialize($authorsLIst, 'json', ['groups' => 'getAuthors']);
+        });
 
         return new JsonResponse($jsonAuthors, Response::HTTP_OK, [], true);
     }
@@ -54,7 +77,7 @@ class AuthorController extends AbstractController
      * il y a une action en base de données donc on a besoin d'entityManager
      * utilisation des paramConverteur
      * En cascade, les livres associés aux auteurs seront aux aussi supprimés.
-     *
+
      * /!\ Attention /!\
      * pour éviter le problème :
      * "1451 Cannot delete or update a parent row: a foreign key constraint fails"
@@ -63,14 +86,17 @@ class AuthorController extends AbstractController
      *
      * Et resynchronizer la base de données pour appliquer ces modifications.
      * avec : php bin/console doctrine:schema:update --force
-     *
      * @param Author $author
      * @param EntityManagerInterface $em
+     * @param TagAwareCacheInterface $cachePool
      * @return JsonResponse
+     * @throws \Psr\Cache\InvalidArgumentException
      */
     #[Route('api/authors/{id}', name: 'deleteAuthor', methods:['DELETE'])]
-    public function deleteAuthor(Author $author, EntityManagerInterface $em): JsonResponse
+    public function deleteAuthor(Author $author, EntityManagerInterface $em, TagAwareCacheInterface $cachePool): JsonResponse
     {
+        // vider le cache quand on supprime un élément
+        $cachePool->invalidateTags(["authorsCache"]);
         $em->remove($author);
         $em->flush();
 
