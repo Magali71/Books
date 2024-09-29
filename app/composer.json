@@ -26,7 +26,8 @@
         "symfony/security-bundle": "6.3.*",
         "symfony/serializer": "6.3.*",
         "symfony/validator": "^6.4",
-        "symfony/yaml": "6.3.*"
+        "symfony/yaml": "6.3.*",
+        "willdurand/hateoas-bundle": "^2.6"
     },
     "config": {
         "allow-plugins": {

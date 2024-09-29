@@ -24,7 +24,9 @@ class AuthorController extends AbstractController
      * @param AuthorRepository $authorRepository
      * @param SerializerInterface $serializer
      * @param Request $request
+     * @param TagAwareCacheInterface $cachePool
      * @return JsonResponse
+     * @throws \Psr\Cache\InvalidArgumentException
      */
     #[Route('/api/authors', name: 'authors', methods: ['GET'])]
     public function getAllAuthors(
@@ -49,9 +51,9 @@ class AuthorController extends AbstractController
 
         $jsonAuthors = $cachePool->get($idCache, function (ItemInterface $item) use ($authorRepository, $page, $nbItem, $serializer) {
             $item->tag("authorsCache");
-            $authorsLIst = $authorRepository->findAllWithPagination($page, $nbItem);
+            $authorsList = $authorRepository->findAllWithPagination($page, $nbItem);
             // deuxième étape : convertir les données en json
-            return $serializer->serialize($authorsLIst, 'json', ['groups' => 'getAuthors']);
+            return $serializer->serialize($authorsList, 'json', ['groups' => 'getAuthors']);
         });
 
         return new JsonResponse($jsonAuthors, Response::HTTP_OK, [], true);
