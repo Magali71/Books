@@ -51,6 +51,7 @@ class AppFixtures extends Fixture
             $book->setCoverText('La quatrième de couverture numéro : ' . $i);
             // on lie le livre à un auteur pris au hasard
             $book->setAuthor($authors[array_rand($authors)]);
+            $book->setComment("Commentaire du bibliothécaire " . $i);
             $manager->persist($book);
         }
 

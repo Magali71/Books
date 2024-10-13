@@ -5,8 +5,10 @@ namespace App\Controller;
 use App\Entity\Book;
 use App\Repository\AuthorRepository;
 use App\Repository\BookRepository;
+use App\Service\VersioningService;
 use Doctrine\ORM\EntityManagerInterface;
 use JMS\Serializer\SerializationContext;
+use Psr\Cache\InvalidArgumentException;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -18,15 +20,53 @@ use JMS\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 use Symfony\Contracts\Cache\TagAwareCacheInterface;
+use Nelmio\ApiDocBundle\Annotation\Model;
+use Nelmio\ApiDocBundle\Annotation\Security;
+use OpenApi\Annotations as OA;
 
 class BookController extends AbstractController
 {
+    /**
+     * Cette méthode permet de récupérer l'ensemble des livres.
+     *
+     * @OA\Response(
+     *     response=200,
+     *     description="Retourne la liste des livres",
+     *     @OA\JsonContent(
+     *        type="array",
+     *        @OA\Items(ref=@Model(type=Book::class, groups={"getBooks"}))
+     *     )
+     * )
+     * @OA\Parameter(
+     *     name="page",
+     *     in="query",
+     *     description="La page que l'on veut récupérer",
+     *     @OA\Schema(type="int")
+     * )
+     *
+     * @OA\Parameter(
+     *     name="limit",
+     *     in="query",
+     *     description="Le nombre d'éléments que l'on veut récupérer",
+     *     @OA\Schema(type="int")
+     * )
+     * @OA\Tag(name="Books")
+     *
+     * @param BookRepository $bookRepository
+     * @param SerializerInterface $serializer
+     * @param Request $request
+     * @param TagAwareCacheInterface $cachePool
+     * @param VersioningService $versioningService
+     * @return JsonResponse
+     * @throws InvalidArgumentException
+     */
     #[Route('/api/books', name: 'app_book', methods: ['GET'])]
     public function getAllBooks(
         BookRepository $bookRepository,
         SerializerInterface $serializer,
         Request $request,
-        TagAwareCacheInterface $cachePool
+        TagAwareCacheInterface $cachePool,
+        VersioningService $versioningService
     ): JsonResponse
     {
         // pagination, le 1 et le 3 sont des paramètres par defaut s'ils ne sont pas def dans l'url
@@ -44,11 +84,13 @@ class BookController extends AbstractController
         // $books = $bookRepository->findAllWithPagination($page, $nbItem);
 
         // mise en place du cache
-        $jsonBookList = $cachePool->get($idCache, function (ItemInterface $item) use ($bookRepository, $page, $nbItem, $serializer) {
+        $jsonBookList = $cachePool->get($idCache, function (ItemInterface $item) use ($bookRepository, $page, $nbItem, $serializer, $versioningService) {
             $item->tag("booksCache");
+            $version = $versioningService->getVersion();
             $booksList = $bookRepository->findAllWithPagination($page, $nbItem);
             // le context nous sert pour la documentation et les besoins de JMSSerializer
             $context = SerializationContext::create()->setGroups(['getBooks']);
+            $context->setVersion($version);
             // deuxième étape : convertir les données en json
             return $serializer->serialize($booksList, 'json', $context);
         });
@@ -68,6 +110,8 @@ class BookController extends AbstractController
         if ($book) {
             // le context nous sert pour la documentation et les besoins de JMSSerializer
             $context = SerializationContext::create()->setGroups(['getBooks']);
+            // gestion du versionning
+            $context->setVersion("1.0");
             // deuxième étape : convertir les données en json
             $bookJson = $serializer->serialize($book, 'json', $context);
             // true est important il permet de dire que les données sont déjà en json et de les afficher correctement
